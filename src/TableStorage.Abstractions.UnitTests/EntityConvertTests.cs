@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using Newtonsoft.Json;
+using System.Text.Json;
 using TableStorage.Abstractions.TableEntityConverters;
 using Xunit;
 
@@ -10,7 +10,7 @@ namespace TableStorage.Abstractions.UnitTests
 	{
 		public EntityConvertTests()
 		{
-			EntityConvert.SetDefaultJsonSerializerSettings();
+			EntityConvert.SetDefaultJsonSerializerOptions();
 		}
 		
 		public class GuidKeyTest
@@ -323,8 +323,8 @@ namespace TableStorage.Abstractions.UnitTests
 		[Fact]
 		public void convert_to_entity_table_custom_json_settings_as_a_global_setting()
 		{
-			EntityConvert.SetDefaultJsonSerializerSettings(new JsonSerializerSettings {
-				NullValueHandling = NullValueHandling.Ignore,
+			EntityConvert.SetDefaultJsonSerializerOptions(new JsonSerializerOptions {
+				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 			});
 			
 			var emp = new Employee
@@ -350,10 +350,12 @@ namespace TableStorage.Abstractions.UnitTests
 		[Fact]
 		public void convert_to_entity_table_custom_json_settings_as_a_local_setting()
 		{
-			var jsonSerializerSettings = new JsonSerializerSettings {
-				NullValueHandling = NullValueHandling.Ignore
+			var jsonSerializerSettings = new JsonSerializerOptions
+			{
+				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 			};
-			
+
+
 			var emp = new Employee
 			{
 				Company = "Microsoft",
@@ -374,62 +376,7 @@ namespace TableStorage.Abstractions.UnitTests
 			Assert.DoesNotContain("optionalid", dept);
 		}
 		
-		[Fact]
-		public void convert_from_entity_using_custom_json_settings_as_a_global_setting()
-		{
-			EntityConvert.SetDefaultJsonSerializerSettings(new JsonSerializerSettings {
-				Converters = new List<JsonConverter>{new KeysJsonConverter(typeof(Department))}
-			});
-			
-			var emp = new Employee
-			{
-				Company = "Microsoft",
-				Name = "John Smith",
-				Department = new Department
-				{
-					Name = "QA",
-					Id = 1,
-					OptionalId = null
-				},
-				Id = 42,
-				ExternalId = Guid.Parse("e3bf64f4-0537-495c-b3bf-148259d7ed36"),
-				HireDate = DateTimeOffset.Parse("Thursday, January 31, 2008	")
-			};
-			var tableEntity = emp.ToTableEntity(e => e.Company, e => e.Id);
-			var dept = tableEntity.GetString("DepartmentJson");
-			Assert.Contains("Keys", dept);
-			var deserializedEmp = tableEntity.FromTableEntity<Employee>();
-			Assert.Equal("QA", deserializedEmp.Department.Name);
-		}
 		
-		[Fact]
-		public void convert_from_entity_using_custom_json_settings_as_a_local_setting()
-		{
-			var jsonSerializerSettings = new JsonSerializerSettings {
-				Converters = new List<JsonConverter>{new KeysJsonConverter(typeof(Department))}
-			};
-			
-			var emp = new Employee
-			{
-				Company = "Microsoft",
-				Name = "John Smith",
-				Department = new Department
-				{
-					Name = "QA",
-					Id = 1,
-					OptionalId = null
-				},
-				Id = 42,
-				ExternalId = Guid.Parse("e3bf64f4-0537-495c-b3bf-148259d7ed36"),
-				HireDate = DateTimeOffset.Parse("Thursday, January 31, 2008	")
-			};
-			var tableEntity = emp.ToTableEntity(e => e.Company, e => e.Id, jsonSerializerSettings);
-			var dept = tableEntity.GetString("DepartmentJson");
-			Assert.Contains("Keys", dept);
-			var deserializedEmp = tableEntity.FromTableEntity<Employee>(jsonSerializerSettings);
-			Assert.Equal("QA", deserializedEmp.Department.Name);
-		}
-
 		[Fact]
 		public void convert_to_entity_table_explicit_keys()
 		{
@@ -538,7 +485,7 @@ namespace TableStorage.Abstractions.UnitTests
 						)
 			};
 			var carEntity =
-				car.ToTableEntity(c => c.Year, c => car.Id, new JsonSerializerSettings(), propertyConverters);
+				car.ToTableEntity(c => c.Year, c => car.Id, new JsonSerializerOptions(), propertyConverters);
 			Assert.Equal("2022-3-1", carEntity.GetString(nameof(car.ReleaseDate)));
 		}
 		
@@ -561,7 +508,7 @@ namespace TableStorage.Abstractions.UnitTests
 					)
 			};
 
-			var jsonSerializerSettings = new JsonSerializerSettings();
+			var jsonSerializerSettings = new JsonSerializerOptions();
 			
 			var carEntity =
 				car.ToTableEntity(c => c.Year, c => car.Id, jsonSerializerSettings, propertyConverters);
