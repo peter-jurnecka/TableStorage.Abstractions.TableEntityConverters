@@ -5,22 +5,25 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using Azure.Data.Tables;
-using System.Text.Json.Serialization;
 
 namespace TableStorage.Abstractions.TableEntityConverters
 {
 	public static class EntityConvert
 	{
 		private static JsonSerializerOptions _defaultJsonSerializerOptions = new JsonSerializerOptions();
-		
+
 		/// <summary>
 		/// Json fields will use be serialized/deserialized with these provided settings when JsonSerializerOptions are
 		/// not explicitly passed into ToTableEntity/FromTableEntity
 		/// </summary>
 		/// <param name="JsonSerializerOptions">Note: null resets to default</param>
-		public static void SetDefaultJsonSerializerOptions (JsonSerializerOptions JsonSerializerOptions = default)
+		public static void SetDefaultJsonSerializerOptions(JsonSerializerOptions JsonSerializerOptions = default)
 		{
-			_defaultJsonSerializerOptions = JsonSerializerOptions ?? new JsonSerializerOptions();
+			_defaultJsonSerializerOptions = JsonSerializerOptions ?? new JsonSerializerOptions()
+			{
+				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault,
+				IgnoreReadOnlyProperties = true,
+			};
 		}
 
 		public static TableEntity ToTableEntity<T>(this T o, string partitionKey, string rowKey,
@@ -29,7 +32,7 @@ namespace TableStorage.Abstractions.TableEntityConverters
 			return ToTableEntity(o, partitionKey, rowKey, _defaultJsonSerializerOptions, default, ignoredProperties);
 		}
 		public static TableEntity ToTableEntity<T>(this T o, string partitionKey, string rowKey,
-			JsonSerializerOptions JsonSerializerOptions, 
+			JsonSerializerOptions JsonSerializerOptions,
 			PropertyConverters<T> propertyConverters = default,
 			params Expression<Func<T, object>>[] ignoredProperties)
 		{
@@ -46,9 +49,9 @@ namespace TableStorage.Abstractions.TableEntityConverters
 		{
 			return ToTableEntity(o, partitionProperty, rowProperty, _defaultJsonSerializerOptions, null, ignoredProperties);
 		}
-		
+
 		public static TableEntity ToTableEntity<T>(this T o, Expression<Func<T, object>> partitionProperty,
-			Expression<Func<T, object>> rowProperty, JsonSerializerOptions JsonSerializerOptions, 
+			Expression<Func<T, object>> rowProperty, JsonSerializerOptions JsonSerializerOptions,
 			PropertyConverters<T> propertyConverters = default,
 			params Expression<Func<T, object>>[] ignoredProperties)
 		{
@@ -86,12 +89,12 @@ namespace TableStorage.Abstractions.TableEntityConverters
 
 		public static T FromTableEntity<T, TP, TR>(this TableEntity entity,
 			Expression<Func<T, object>> partitionProperty,
-			Expression<Func<T, object>> rowProperty, 
-			JsonSerializerOptions JsonSerializerOptions, 
+			Expression<Func<T, object>> rowProperty,
+			JsonSerializerOptions JsonSerializerOptions,
 			PropertyConverters<T> propertyConverters = default) where T : new()
 		{
 			_ = JsonSerializerOptions ?? throw new ArgumentNullException(nameof(JsonSerializerOptions));
-			
+
 			var convertPartition = new Func<string, TP>(p => (TP)Convert.ChangeType(p, typeof(TP)));
 			var convertRow = new Func<string, TR>(r => (TR)Convert.ChangeType(r, typeof(TR)));
 
@@ -115,15 +118,15 @@ namespace TableStorage.Abstractions.TableEntityConverters
 			return FromTableEntity(entity, partitionProperty, convertPartitionKey, rowProperty,
 				convertRowKey, _defaultJsonSerializerOptions);
 		}
-		
+
 		public static T FromTableEntity<T, TP, TR>(this TableEntity entity,
 			Expression<Func<T, object>> partitionProperty,
 			Func<string, TP> convertPartitionKey, Expression<Func<T, object>> rowProperty,
-			Func<string, TR> convertRowKey, JsonSerializerOptions JsonSerializerOptions, 
+			Func<string, TR> convertRowKey, JsonSerializerOptions JsonSerializerOptions,
 			PropertyConverters<T> propertyConverters = default) where T : new()
 		{
 			_ = JsonSerializerOptions ?? throw new ArgumentNullException(nameof(JsonSerializerOptions));
-			
+
 			var o = new T();
 			var type = typeof(T);
 			var properties = GetProperties(type);
@@ -161,12 +164,12 @@ namespace TableStorage.Abstractions.TableEntityConverters
 		{
 			return FromTableEntity<T>(entity, _defaultJsonSerializerOptions);
 		}
-		
-		public static T FromTableEntity<T>(this TableEntity entity, 
+
+		public static T FromTableEntity<T>(this TableEntity entity,
 			JsonSerializerOptions JsonSerializerOptions, PropertyConverters<T> propertyConverters = default) where T : new()
 		{
 			_ = JsonSerializerOptions ?? throw new ArgumentNullException(nameof(JsonSerializerOptions));
-			
+
 			return entity.FromTableEntity<T, object, object>(null, null, null, null, JsonSerializerOptions, propertyConverters);
 		}
 
@@ -196,7 +199,7 @@ namespace TableStorage.Abstractions.TableEntityConverters
 
 			if (timestampProperty != null)
 			{
-				if(timestampProperty.PropertyType == typeof(DateTimeOffset))
+				if (timestampProperty.PropertyType == typeof(DateTimeOffset))
 				{
 					timestampProperty.SetValue(o, entity.Timestamp);
 				}
@@ -332,7 +335,7 @@ namespace TableStorage.Abstractions.TableEntityConverters
 
 		private static List<PropertyInfo> GetProperties(Type type)
 		{
-			var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(p=>p.CanRead && p.CanWrite)
+			var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(p => p.CanRead && p.CanWrite)
 				.ToList();
 			return properties;
 		}
@@ -349,5 +352,23 @@ namespace TableStorage.Abstractions.TableEntityConverters
 				}
 			}
 		}
+	}
+
+
+	public class PropertyConverter<T>
+	{
+		public Func<T, object> ToTableEntityProperty { get; }
+		public Action<T, object> SetObjectProperty { get; }
+
+		public PropertyConverter(Func<T, object> toTableEntityProperty, Action<T, object> setObjectProperty)
+		{
+			ToTableEntityProperty = toTableEntityProperty;
+			SetObjectProperty = setObjectProperty;
+		}
+
+	}
+	public class PropertyConverters<T> : Dictionary<string, PropertyConverter<T>>
+	{
+
 	}
 }
